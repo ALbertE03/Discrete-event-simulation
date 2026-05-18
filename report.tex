@@ -47,39 +47,21 @@ Tiempo de carga & $\mathcal{N}(9, 1)$ & $\mathcal{N}(12, 2)$ & $\mathcal{N}(18, 
 \end{table}
 
 
-La solución se desarrolló como una simulación de eventos discretos. La idea central fue representar cada cambio importante del sistema como un evento futuro y procesar esos eventos en orden cronológico.
+La solución se desarrolló como una simulación de eventos discretos. En lugar de avanzar el reloj en intervalos fijos, el modelo salta de un cambio relevante al siguiente: la llegada de un tanquero, el inicio o fin de un remolque, el comienzo o final de la carga y la salida del sistema. Para mantener ese orden temporal se utilizó una cola de prioridad con la lista de eventos futuros.
 
-\begin{itemize}
-    \item Representar los arribos, remolques, cargas y salidas como eventos discretos.
-    \item Mantener una lista de eventos futuros usando una cola de prioridad.
-    \item Usar una cola FIFO para los barcos que esperan entrar desde el puerto.
-    \item Usar una cola FIFO para los barcos que terminaron la carga y esperan salir desde los muelles.
-    \item Modelar los 3 muelles mediante un contador de muelles disponibles.
-    \item Modelar el remolcador como un recurso único que puede estar en el puerto, en la zona de muelles o viajando.
-    \item Reservar un muelle cuando un barco inicia el remolque de entrada para evitar asignaciones duplicadas.
-    \item Ejecutar 50 réplicas independientes, cada una con 100000 barcos, para estimar promedios e intervalos de confianza.
-\end{itemize}
+La operación del puerto se representó con dos colas FIFO: una para los barcos que esperan entrar desde el puerto y otra para los que ya terminaron de cargar y esperan salir desde los muelles. Los tres muelles se manejan como una capacidad limitada, mientras que el remolcador se trata como un recurso único que puede estar en el puerto, en la zona de muelles o viajando vacío entre ambas zonas. Cuando un barco inicia el remolque de entrada, el modelo reserva inmediatamente un muelle para evitar asignaciones duplicadas. Con esta lógica se ejecutaron 50 réplicas independientes de 100000 barcos cada una, suficientes para estimar promedios e intervalos de confianza.
 
 \section{Modelo}
 
 \subsection{Entidades}
 
-\begin{itemize}
-    \item \texttt{Ship}: representa cada tanquero. Guarda el tipo de barco, hora de llegada, duración de carga, inicio de remolque, inicio y fin de carga, inicio de salida y hora de abandono del sistema.
-    \item \texttt{Event}: representa un evento futuro. Tiene tiempo de ocurrencia, tipo de evento y, cuando corresponde, el identificador del barco.
-    \item \texttt{PortSimulation}: controla el reloj de simulación, la lista de eventos, las colas, los recursos disponibles y las métricas finales.
-\end{itemize}
+El modelo se organiza alrededor de tres estructuras principales. \texttt{Ship} representa a cada tanquero y concentra su información operativa: tipo de barco, hora de llegada, duración de carga, momentos de remolque, inicio y fin de carga, inicio de salida y abandono del sistema. \texttt{Event} describe cada cambio futuro mediante su tiempo de ocurrencia, su tipo y, cuando aplica, el identificador del barco asociado. Sobre esas dos estructuras trabaja \texttt{PortSimulation}, que controla el reloj de simulación, administra la lista de eventos, actualiza las colas y recursos, y acumula las métricas finales.
 
 \subsection{Eventos}
 
-\begin{enumerate}
-    \item \texttt{arrival}: llega un nuevo tanquero al puerto.
-    \item \texttt{inbound\_tow\_complete}: termina el remolque de entrada y comienza la carga.
-    \item \texttt{loading\_complete}: termina la carga y el barco pasa a la cola de salida.
-    \item \texttt{outbound\_tow\_complete}: termina el remolque de salida, el barco abandona el sistema y se libera el muelle.
-    \item \texttt{empty\_arrive\_port}: el remolcador llega vacío al puerto.
-    \item \texttt{empty\_arrive\_docks}: el remolcador llega vacío a la zona de muelles.
-\end{enumerate}
+La dinámica del sistema comienza con la llegada de un nuevo tanquero. Si el barco puede entrar, se programa el fin del remolque de entrada y, al completarse ese traslado, empieza la carga. Cuando la carga termina, el barco pasa a la cola de salida. El ciclo se cierra cuando concluye el remolque de salida: el tanquero abandona el sistema, el muelle queda libre y puede atenderse otro barco.
+
+También se modelan los desplazamientos vacíos del remolcador entre el puerto y la zona de muelles. Estos movimientos son importantes porque el remolcador no puede atender de inmediato una cola que se encuentra en la zona opuesta; primero debe completar el viaje vacío y recién entonces puede iniciar un nuevo remolque.
 
 \subsection{Reglas del Remolcador}
 
@@ -107,14 +89,7 @@ Para los tiempos de carga se usaron distribuciones normales según el tipo de ba
 
 \subsection{Métricas Calculadas}
 
-Para cada barco completado se calcularon las siguientes métricas:
-
-\begin{itemize}
-    \item \textbf{Espera antes del remolque de entrada:} \texttt{inbound\_tow\_start - arrival\_time}.
-    \item \textbf{Tiempo hasta comenzar carga:} \texttt{loading\_start - arrival\_time}.
-    \item \textbf{Espera en muelle para salir:} \texttt{outbound\_tow\_start - loading\_end}.
-    \item \textbf{Tiempo total en el sistema:} \texttt{departure\_time - arrival\_time}.
-\end{itemize}
+Para cada barco completado se midió cuánto tarda en ser atendido desde que llega al puerto, cuánto demora en comenzar la carga, cuánto espera en el muelle después de cargar y cuánto tiempo permanece en total dentro del sistema. En términos de las variables registradas por la simulación, estas métricas corresponden a \texttt{inbound\_tow\_start - arrival\_time}, \texttt{loading\_start - arrival\_time}, \texttt{outbound\_tow\_start - loading\_end} y \texttt{departure\_time - arrival\_time}, respectivamente.
 
 Los intervalos de confianza al 95\% se calcularon mediante:
 
@@ -124,9 +99,9 @@ IC_{95\%} = \bar{x} \pm 1.96 \cdot \frac{s}{\sqrt{n}},
 
 donde $n=50$ réplicas.
 
-\section{Resultados }
+\section{Resultados}
 
-La configuración base simulada fue la del problema original: 3 muelles, 1 remolcador, 100000 barcos por réplica y 50 réplicas independientes. Los resultados de la Tabla \ref{tab:resultados-base} fueron obtenidos ejecutando el notebook con la lógica descrita.
+La configuración base simulada fue la del problema original: 3 muelles, 1 remolcador, 100000 barcos por réplica y 50 réplicas independientes. 
 
 \begin{table}[H]
 \centering
@@ -183,7 +158,7 @@ Este análisis de sensibilidad usa un esquema de semillas diferente al de la cor
 \caption{Configuraciones evaluadas en el análisis de sensibilidad}
 \label{tab:configuraciones}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{llcc}
+\begin{tabular}{lcc}
 \toprule
 \textbf{Identificador} & \textbf{Muelles} & \textbf{Remolcadores} \\
 \midrule
@@ -236,34 +211,26 @@ Este análisis de sensibilidad usa un esquema de semillas diferente al de la cor
 \caption{Mejora relativa respecto a la configuración base.}
 \end{figure}
 
-El análisis ANOVA reportado por el notebook dio diferencias significativas entre configuraciones para la espera de entrada y para el tiempo total en sistema, con $p < 0.05$ en ambos casos. Las comparaciones por pares muestran que aumentar de 3 a 4 muelles, de 4 a 5 muelles y luego hasta 100 muelles reduce de forma significativa la espera de entrada. En cambio, para un mismo número de muelles, aumentar solamente la cantidad de remolcadores no produjo diferencias significativas en las salidas obtenidas.
+El análisis ANOVA reportado dio diferencias significativas entre configuraciones para la espera de entrada y para el tiempo total en sistema, con $p < 0.05$ en ambos casos. Las comparaciones por pares muestran que aumentar de 3 a 4 muelles, de 4 a 5 muelles y luego hasta 100 muelles reduce de forma significativa la espera de entrada. En cambio, para un mismo número de muelles, aumentar solamente la cantidad de remolcadores no produjo diferencias significativas en las salidas obtenidas.
 
 Los experimentos más interesantes fueron los de aumento de muelles. Pasar de 3 a 4 muelles redujo la espera de entrada en aproximadamente $24.9\%$, mientras que usar 5 muelles alcanzó una mejora cercana al $39.7\%$. Los escenarios extremos con 100 muelles redujeron la espera de entrada en aproximadamente $73.6\%$, aunque el sistema siguió mostrando tiempos de espera elevados por la intensidad de los arribos.
 
 \section{Consideraciones Obtenidas a Partir de las Simulaciones}
 
-Los resultados muestran que el sistema trabaja en una condición de sobrecarga. Con el uso directo de \texttt{expovariate($\lambda$)} y $\lambda=8$ para los arribos, los barcos llegan con mucha frecuencia. La capacidad del puerto queda limitada por los 3 muelles, el remolcador único y los tiempos de carga, especialmente porque la mitad de los tanqueros son grandes y tienen mayor duración de carga.
+El comportamiento observado corresponde a un sistema claramente sobrecargado. Con el uso directo de \texttt{expovariate($\lambda$)} y $\lambda=8$ para los arribos, los tanqueros se incorporan al puerto a un ritmo muy superior al que la infraestructura puede absorber. La limitación no proviene de un solo elemento aislado: los tres muelles, el remolcador único y los tiempos de carga actúan en conjunto, especialmente porque la mitad de los barcos son grandes y permanecen más tiempo ocupando capacidad.
 
-La métrica de espera antes de entrar al muelle domina el tiempo total en el sistema. La diferencia entre el tiempo hasta comenzar la carga y la espera antes del remolque de entrada es pequeña, lo que indica que, una vez que el barco consigue ser atendido por el remolcador, el traslado de entrada no es el mayor problema. El mayor cuello de botella está en la acumulación de barcos en la cola de entrada.
+La espera antes del remolque de entrada domina casi por completo el tiempo total en el sistema. La diferencia entre esperar el remolque y comenzar la carga es pequeña, de modo que el traslado de entrada no explica la congestión principal una vez que el barco logra ser atendido. El problema aparece antes, cuando la cola de entrada crece porque no hay suficiente capacidad disponible para iniciar nuevas cargas.
 
-La espera en muelle para salir fue baja en comparación con la espera de entrada. Esto significa que, después de completada la carga, los barcos no permanecen demasiado tiempo bloqueando el muelle antes de salir. Aun así, el sistema global sigue siendo ineficiente porque la cola de entrada crece de forma muy marcada.
+Después de la carga, el panorama es distinto. La espera para salir desde el muelle fue baja en comparación con la espera de entrada, lo cual indica que los barcos no quedan demasiado tiempo retenidos al finalizar su servicio. Aun así, esa eficiencia local no compensa la acumulación inicial: el sistema sigue siendo inestable dentro del horizonte simulado porque la demanda supera la capacidad efectiva del puerto.
 
-La gráfica de relación entre espera de entrada y tiempo total confirma que el tiempo total depende casi completamente de la espera inicial. Por tanto, cualquier mejora real del sistema tendría que reducir esa espera, por ejemplo aumentando la capacidad efectiva de atención, revisando la frecuencia de arribos o incorporando más recursos.
-
-El análisis de sensibilidad confirma que el número de muelles tiene mayor impacto práctico que el aumento de remolcadores en las corridas obtenidas. Las mejoras más claras aparecen cuando se incrementa la cantidad de muelles, porque se reduce el bloqueo de barcos que esperan espacio para iniciar el proceso de carga.
+El análisis de sensibilidad refuerza esta lectura. Agregar remolcadores, sin aumentar el número de muelles, produjo cambios muy pequeños; en cambio, ampliar los muelles redujo la espera de forma visible. Por eso, una mejora real tendría que actuar sobre la capacidad de entrada y carga del puerto, o sobre la frecuencia de arribos, antes que concentrarse solamente en acelerar la salida desde los muelles.
 
 \section{Conclusiones}
 
-\begin{itemize}
-    \item La simulación confirma que el puerto está sobrecargado bajo los parámetros usados en el notebook.
-    \item El tiempo promedio de espera en muelle para salir fue de $0.2403$ horas, aproximadamente $14.42$ minutos.
-    \item La espera promedio antes de comenzar el proceso de entrada al muelle fue de $260314.31$ horas, por lo que el principal problema operativo ocurre antes de la carga.
-    \item El tiempo total promedio en el sistema fue de $260330.31$ horas, casi igual a la espera inicial más el tiempo de carga y salida.
-    \item En los experimentos de sensibilidad, pasar de 3 a 4 muelles mejoró la espera de entrada en $24.9\%$ y pasar a 5 muelles la mejoró en $39.7\%$.
-    \item Los escenarios con 100 muelles lograron una mejora aproximada de $73.6\%$, pero no eliminaron completamente la sobrecarga.
-    \item El ANOVA mostró diferencias significativas entre configuraciones; las diferencias relevantes se asociaron principalmente al aumento de muelles.
-    \item El sistema no muestra un comportamiento estable para el horizonte simulado; la cola de entrada crece debido a que la demanda supera la capacidad de atención del puerto.
-    \item Para reducir la congestión, la mejora debe enfocarse en aumentar la capacidad de entrada y carga del puerto, no solo en disminuir la espera de salida desde los muelles.
-\end{itemize}
+La simulación confirma que el puerto opera en una condición de sobrecarga. Aunque la espera promedio para salir del muelle fue baja, $0.2403$ horas o aproximadamente $14.42$ minutos, la espera antes de comenzar el proceso de entrada alcanzó $260314.31$ horas. Como consecuencia, el tiempo total promedio en el sistema, $260330.31$ horas, queda determinado casi por completo por esa acumulación inicial.
+
+Los experimentos de sensibilidad muestran que el cambio con mayor efecto fue aumentar la cantidad de muelles. Pasar de 3 a 4 muelles redujo la espera de entrada en $24.9\%$, y usar 5 muelles elevó la mejora a $39.7\%$. Incluso los escenarios extremos con 100 muelles, que alcanzaron una reducción cercana al $73.6\%$, no eliminaron por completo la congestión, lo cual confirma que la intensidad de los arribos mantiene al sistema bajo presión.
+
+El ANOVA también respalda esta interpretación: existen diferencias significativas entre configuraciones, pero las variaciones relevantes se asocian principalmente al aumento de muelles. En síntesis, el principal problema operativo no está en la salida de los barcos ya cargados, sino en la capacidad del puerto para admitir nuevos tanqueros y sostener el ritmo de carga frente a la demanda simulada.
 
 \end{document}
