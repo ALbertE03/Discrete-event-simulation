@@ -31,7 +31,7 @@
 
 El problema asignado es \textbf{Puerto Sobrecargado}. Se debe simular el funcionamiento de un puerto de supertanqueros con 3 muelles y un remolcador, con el objetivo de estimar los tiempos promedio de espera y analizar el comportamiento del sistema bajo las reglas de operación indicadas.
 
-En el puerto llegan tanqueros de tres tamaños: pequeños, medianos y grandes. Todos necesitan asistencia del remolcador para entrar al muelle y para abandonar el puerto luego de terminar la carga. Los muelles son recursos limitados y el remolcador es un recurso único, por lo que la congestión puede aparecer tanto antes de entrar al muelle como después de finalizar la carga.
+En el puerto llegan tanqueros de tres tamaños: pequeños, medianos y grandes. Todos necesitan asistencia del remolcador para entrar al muelle y para abandonar el puerto luego de terminar la carga. Los muelles son recursos limitados y el remolcador es un recurso único.
 
 \begin{table}[H]
 \centering
@@ -46,7 +46,6 @@ Tiempo de carga & $\mathcal{N}(9, 1)$ & $\mathcal{N}(12, 2)$ & $\mathcal{N}(18, 
 \end{tabular}
 \end{table}
 
-\section{Principales Ideas Seguidas para la Solución}
 
 La solución se desarrolló como una simulación de eventos discretos. La idea central fue representar cada cambio importante del sistema como un evento futuro y procesar esos eventos en orden cronológico.
 
@@ -61,9 +60,9 @@ La solución se desarrolló como una simulación de eventos discretos. La idea c
     \item Ejecutar 50 réplicas independientes, cada una con 100000 barcos, para estimar promedios e intervalos de confianza.
 \end{itemize}
 
-\section{Modelo de Simulación de Eventos Discretos}
+\section{Modelo}
 
-\subsection{Entidades del Modelo}
+\subsection{Entidades}
 
 \begin{itemize}
     \item \texttt{Ship}: representa cada tanquero. Guarda el tipo de barco, hora de llegada, duración de carga, inicio de remolque, inicio y fin de carga, inicio de salida y hora de abandono del sistema.
@@ -71,7 +70,7 @@ La solución se desarrolló como una simulación de eventos discretos. La idea c
     \item \texttt{PortSimulation}: controla el reloj de simulación, la lista de eventos, las colas, los recursos disponibles y las métricas finales.
 \end{itemize}
 
-\subsection{Eventos Implementados}
+\subsection{Eventos}
 
 \begin{enumerate}
     \item \texttt{arrival}: llega un nuevo tanquero al puerto.
@@ -88,9 +87,6 @@ Cuando el remolcador está en el puerto, primero intenta llevar al muelle al pri
 
 Cuando el remolcador está en los muelles, primero atiende a los barcos que esperan salir. Si no hay barcos esperando salir y hay barcos esperando entrar con algún muelle disponible, viaja vacío hacia el puerto.
 
-\subsection{Generación de Variables Aleatorias}
-
-En el notebook se usó directamente la función \texttt{random.expovariate(L)} con los valores indicados para cada proceso. Esta decisión se mantuvo para el análisis, pues representa la condición de puerto sobrecargado usada en las corridas.
 
 \begin{table}[H]
 \centering
@@ -128,7 +124,7 @@ IC_{95\%} = \bar{x} \pm 1.96 \cdot \frac{s}{\sqrt{n}},
 
 donde $n=50$ réplicas.
 
-\section{Resultados de la Simulación}
+\section{Resultados }
 
 La configuración base simulada fue la del problema original: 3 muelles, 1 remolcador, 100000 barcos por réplica y 50 réplicas independientes. Los resultados de la Tabla \ref{tab:resultados-base} fueron obtenidos ejecutando el notebook con la lógica descrita.
 
@@ -189,7 +185,7 @@ Este análisis de sensibilidad usa un esquema de semillas diferente al de la cor
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{llcc}
 \toprule
-\textbf{Identificador} &  & \textbf{Muelles} & \textbf{Remolcadores} \\
+\textbf{Identificador} & \textbf{Muelles} & \textbf{Remolcadores} \\
 \midrule
 \texttt{base\_3\_1} & 3 & 1 \\
 \texttt{mas\_remolcadores\_3\_2}  & 3 & 2 \\
